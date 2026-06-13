@@ -29,3 +29,4 @@ dist/
 
 # Backup data (user-specific)
 ~/.bookmark_sync/
+legacy/

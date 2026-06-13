@@ -18,6 +18,7 @@ import threading
 import subprocess
 import urllib.request
 import tempfile
+import logging
 from pathlib import Path
 from datetime import datetime
 
@@ -26,9 +27,22 @@ HOME = Path.home()
 SAFARI_PLIST = HOME / "Library" / "Safari" / "Bookmarks.plist"
 EDGE_BOOKMARKS = HOME / "Library" / "Application Support" / "Microsoft Edge" / "Default" / "Bookmarks"
 BACKUP_DIR = HOME / ".bookmark_sync" / "backups"
+LOG_DIR = HOME / ".bookmark_sync" / "logs"
+LOG_FILE = LOG_DIR / "app.log"
 HTML_FILE = Path(__file__).parent / "BookmarkSync.html"
 APP_VERSION = '1.0.0'
 GITHUB_REPO = 'tmzhouwenjie/BookmarkSync'
+
+# ─── 日志配置 ─────────────────────────────────────────────
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    filename=str(LOG_FILE),
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    encoding='utf-8',
+)
+logger = logging.getLogger('BookmarkSync')
 
 
 class Api:
@@ -84,6 +98,7 @@ class Api:
             data = json.loads(edge_json_str)
             with open(EDGE_BOOKMARKS, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
+            logger.info('保存 Edge 书签 → %s', backup.name)
             return json.dumps({"ok": True, "backup": str(backup)})
         except Exception as e:
             return json.dumps({"error": f"保存失败: {e}"})
@@ -101,6 +116,7 @@ class Api:
             plist_data = _json_to_bplist(data)
             with open(SAFARI_PLIST, "wb") as f:
                 plistlib.dump(plist_data, f)
+            logger.info('保存 Safari 书签 → %s', backup.name)
             return json.dumps({"ok": True, "backup": str(backup)})
         except Exception as e:
             return json.dumps({"error": f"保存失败: {e}"})
@@ -112,6 +128,7 @@ class Api:
             mapping_file.parent.mkdir(parents=True, exist_ok=True)
             with open(mapping_file, "w", encoding="utf-8") as f:
                 f.write(mapping_json_str)
+            logger.info('保存文件夹映射 (%d 条)', len(json.loads(mapping_json_str)))
             return json.dumps({"ok": True, "path": str(mapping_file)})
         except Exception as e:
             return json.dumps({"error": str(e)})
@@ -168,6 +185,7 @@ class Api:
                 backup = BACKUP_DIR / 'safari' / f'Bookmarks_{ts}.plist'
                 backup.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(SAFARI_PLIST, backup)
+                logger.info('手动备份 Safari → %s', backup.name)
                 return json.dumps({'ok': True, 'path': str(backup)})
             elif browser == 'edge':
                 if not EDGE_BOOKMARKS.exists():
@@ -175,6 +193,7 @@ class Api:
                 backup = BACKUP_DIR / 'edge' / f'Bookmarks_{ts}.json'
                 backup.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(EDGE_BOOKMARKS, backup)
+                logger.info('手动备份 Edge → %s', backup.name)
                 return json.dumps({'ok': True, 'path': str(backup)})
             else:
                 return json.dumps({'error': f'未知浏览器: {browser}'})
@@ -200,6 +219,7 @@ class Api:
                 if target.exists():
                     shutil.copy2(target, pre_backup)
                 shutil.copy2(bp, target)
+                logger.info('恢复 Edge 备份 ← %s', bp.name)
                 return json.dumps({'ok': True, 'browser': 'edge',
                                    'pre_restore_backup': str(pre_backup)})
             elif bp.suffix == '.plist':
@@ -210,6 +230,7 @@ class Api:
                 if target.exists():
                     shutil.copy2(target, pre_backup)
                 shutil.copy2(bp, target)
+                logger.info('恢复 Safari 备份 ← %s', bp.name)
                 return json.dumps({'ok': True, 'browser': 'safari',
                                    'pre_restore_backup': str(pre_backup)})
             else:
@@ -335,7 +356,30 @@ class Api:
 
             return json.dumps({'ok': True, 'installed_to': str(target)})
         except Exception as e:
+            logger.error('安装更新失败: %s', e)
             return json.dumps({'error': f'安装失败: {e}'})
+
+    def get_logs(self, lines: int = 200) -> str:
+        """读取日志文件最近 N 行。"""
+        try:
+            if not LOG_FILE.exists():
+                return json.dumps({'logs': '', 'path': str(LOG_FILE)})
+            with open(LOG_FILE, 'r', encoding='utf-8') as f:
+                all_lines = f.readlines()
+            recent = all_lines[-lines:] if len(all_lines) > lines else all_lines
+            return json.dumps({'logs': ''.join(recent), 'path': str(LOG_FILE), 'total': len(all_lines)}, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({'logs': '', 'error': str(e)})
+
+    def clear_logs(self) -> str:
+        """清空日志文件。"""
+        try:
+            if LOG_FILE.exists():
+                LOG_FILE.write_text('', encoding='utf-8')
+            logger.info('日志已清空')
+            return json.dumps({'ok': True})
+        except Exception as e:
+            return json.dumps({'error': str(e)})
 
 
 def _bplist_to_json(obj):
@@ -376,6 +420,11 @@ def main():
     print(f"✅ Safari: {SAFARI_PLIST} ({'存在' if SAFARI_PLIST.exists() else '不存在'})")
     print(f"✅ Edge:   {EDGE_BOOKMARKS} ({'存在' if EDGE_BOOKMARKS.exists() else '不存在'})")
     print("\n正在启动窗口...")
+
+    logger.info('═══════════════════════════════════════')
+    logger.info('BookmarkSync v%s 启动', APP_VERSION)
+    logger.info('Safari: %s (%s)', SAFARI_PLIST, '存在' if SAFARI_PLIST.exists() else '不存在')
+    logger.info('Edge:   %s (%s)', EDGE_BOOKMARKS, '存在' if EDGE_BOOKMARKS.exists() else '不存在')
 
     api = Api()
     window = webview.create_window(

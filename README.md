@@ -99,7 +99,6 @@ BookmarkSync/
 ├── build.sh                    # DMG 构建脚本
 ├── 启动BookmarkSync.command     # macOS 双击启动脚本
 ├── requirements.txt            # Python 依赖
-├── legacy/                     # 旧版 Tkinter 架构代码（已弃用）
 └── dist/                       # 构建产物（不纳入版本控制）
 ```
 

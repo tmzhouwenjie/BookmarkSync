@@ -14,15 +14,21 @@ import plistlib
 import shutil
 import webview
 import webbrowser
+import threading
+import subprocess
+import urllib.request
+import tempfile
 from pathlib import Path
 from datetime import datetime
 
-# ─── 路径常量 ─────────────────────────────────────────────
+# ─── 常量 ─────────────────────────────────────────────────
 HOME = Path.home()
 SAFARI_PLIST = HOME / "Library" / "Safari" / "Bookmarks.plist"
 EDGE_BOOKMARKS = HOME / "Library" / "Application Support" / "Microsoft Edge" / "Default" / "Bookmarks"
 BACKUP_DIR = HOME / ".bookmark_sync" / "backups"
 HTML_FILE = Path(__file__).parent / "BookmarkSync.html"
+APP_VERSION = '1.0.0'
+GITHUB_REPO = 'tmzhouwenjie/BookmarkSync'
 
 
 class Api:
@@ -30,6 +36,9 @@ class Api:
 
     def __init__(self):
         self._dirty = False
+        self._update_progress = 0
+        self._update_downloading = False
+        self._update_dmg_path = ''
 
     def set_dirty(self, value: bool) -> str:
         """前端通知 Python 端数据已修改/已保存。"""
@@ -217,6 +226,116 @@ class Api:
             return json.dumps({'ok': True})
         except Exception as e:
             return json.dumps({'error': str(e)})
+
+    # ─── 自动更新 ───────────────────────────────────────────
+
+    def check_github_update(self) -> str:
+        """从 GitHub API 检查最新版本。"""
+        try:
+            url = f'https://api.github.com/repos/{GITHUB_REPO}/releases/latest'
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'BookmarkSync-Updater',
+                'Accept': 'application/vnd.github.v3+json',
+            })
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read().decode())
+            tag = data.get('tag_name', '').lstrip('v')
+            notes = data.get('body', '')
+            assets = data.get('assets', [])
+            dmg_url = ''
+            for a in assets:
+                if a.get('browser_download_url', '').endswith('.dmg'):
+                    dmg_url = a['browser_download_url']
+                    break
+            return json.dumps({
+                'latest_version': tag,
+                'current_version': APP_VERSION,
+                'download_url': dmg_url,
+                'notes': notes,
+                'asset_count': len(assets),
+            }, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({'error': str(e)})
+
+    def download_update(self, url: str) -> str:
+        """后台下载 DMG 更新文件。"""
+        if self._update_downloading:
+            return json.dumps({'error': '下载已在进行中'})
+        self._update_downloading = True
+        self._update_progress = 0
+        self._update_dmg_path = str(Path(tempfile.gettempdir()) / 'BookmarkSync_update.dmg')
+
+        def _dl():
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'BookmarkSync-Updater'})
+                with urllib.request.urlopen(req, timeout=300) as resp:
+                    total = int(resp.headers.get('Content-Length', 0))
+                    downloaded = 0
+                    with open(self._update_dmg_path, 'wb') as f:
+                        while True:
+                            chunk = resp.read(65536)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total > 0:
+                                self._update_progress = int(downloaded * 100 / total)
+                self._update_progress = 100
+                self._update_downloading = False
+            except Exception as e:
+                self._update_downloading = False
+                self._update_progress = -1
+
+        threading.Thread(target=_dl, daemon=True).start()
+        return json.dumps({'ok': True})
+
+    def get_update_progress(self) -> str:
+        """获取下载进度（0-100），-1 表示失败。"""
+        return json.dumps({
+            'progress': self._update_progress,
+            'downloading': self._update_downloading,
+        })
+
+    def install_update(self) -> str:
+        """挂载 DMG 并将 .app 拷贝到 /Applications，替换当前版本。"""
+        try:
+            dmg_path = self._update_dmg_path
+            if not dmg_path or not Path(dmg_path).exists():
+                return json.dumps({'error': '未找到下载的更新文件'})
+
+            mount_point = Path(tempfile.gettempdir()) / 'bs_update_mount'
+            mount_point.mkdir(exist_ok=True)
+
+            result = subprocess.run(
+                ['hdiutil', 'attach', dmg_path, '-mountpoint', str(mount_point), '-nobrowse', '-quiet'],
+                capture_output=True, text=True, timeout=30,
+            )
+            if result.returncode != 0:
+                return json.dumps({'error': f'挂载 DMG 失败: {result.stderr}'})
+
+            try:
+                apps = list(mount_point.glob('*.app'))
+                if not apps:
+                    return json.dumps({'error': 'DMG 中未找到 .app'})
+
+                new_app = apps[0]
+                target = Path('/Applications') / new_app.name
+
+                if target.exists():
+                    shutil.rmtree(str(target))
+                shutil.copytree(str(new_app), str(target), symlinks=True)
+            finally:
+                subprocess.run(['hdiutil', 'detach', str(mount_point), '-quiet'], timeout=15)
+
+            # 清理下载的 DMG
+            try:
+                Path(dmg_path).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+            return json.dumps({'ok': True, 'installed_to': str(target)})
+        except Exception as e:
+            return json.dumps({'error': f'安装失败: {e}'})
 
 
 def _bplist_to_json(obj):

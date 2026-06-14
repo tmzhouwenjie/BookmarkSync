@@ -6,6 +6,7 @@
 #   bash workflow.sh build             # 仅在 Mac 上构建 DMG
 #
 # 流程: Linux 开发 -> Mac 构建 -> GitHub Release
+# 每次构建完成后自动清理 Mac 上的构建产物
 
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -34,6 +35,16 @@ build_dmg() {
     rm -rf dist build
     bash build.sh 2>&1 | tail -5
   "
+  clean_mac
+}
+
+clean_mac() {
+  echo "清理 Mac 构建产物..."
+  ssh "$REMOTE" "
+    cd $MAC_PROJ
+    rm -rf dist build *.spec
+  "
+  echo "完成"
 }
 
 create_release() {
@@ -71,6 +82,8 @@ create_release() {
       --notes \"请查看 Release 说明\" \
       dist/BookmarkSync_${version#v}.dmg 2>&1
   "
+
+  clean_mac
 
   echo "完成: https://github.com/tmzhouwenjie/BookmarkSync/releases/tag/$version"
 }

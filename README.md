@@ -98,6 +98,20 @@ bash build.sh
 - `dist/BookmarkSync.app` — 独立应用包
 - `dist/BookmarkSync_x.x.x.dmg` — 磁盘镜像
 
+## 发布工作流
+
+跨机器协作（Linux 开发 + Mac 构建）:
+
+```bash
+# 同步代码到 Mac
+bash workflow.sh sync
+
+# 一键发布新版本（自动：更新版本号 → 同步 → 构建 → 发布）
+bash workflow.sh release v1.1.0
+```
+
+> **架构说明**: 代码在 Linux 上开发 → `workflow.sh` 通过 rsync 同步到 Mac → Mac 上构建 DMG 并上传 GitHub Release。`gh` CLI 在 Mac 上负责推送代码和发布。
+
 ## 项目结构
 
 ```

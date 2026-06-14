@@ -159,8 +159,7 @@ body { font-family: -apple-system, 'SF Pro Text', 'Segoe UI', sans-serif; backgr
         <button class="btn sm" onclick="checkAll('safari',false)">取消</button>
         <button class="btn sm" onclick="invertCheck('safari')">反选</button>
         <div class="sep"></div>
-        <button class="btn sm" onclick="expandAll('safari')">📂 展开</button>
-        <button class="btn sm" onclick="collapseAll('safari')">📂 折叠</button>
+        <button class="btn sm" onclick="toggleExpand('safari')">📂 展开</button>
       </div>
     </div>
     <div class="tree-container" id="safariTree"></div>
@@ -178,8 +177,7 @@ body { font-family: -apple-system, 'SF Pro Text', 'Segoe UI', sans-serif; backgr
         <button class="btn sm" onclick="checkAll('edge',false)">取消</button>
         <button class="btn sm" onclick="invertCheck('edge')">反选</button>
         <div class="sep"></div>
-        <button class="btn sm" onclick="expandAll('edge')">📂 展开</button>
-        <button class="btn sm" onclick="collapseAll('edge')">📂 折叠</button>
+        <button class="btn sm" onclick="toggleExpand('edge')">📂 展开</button>
       </div>
     </div>
     <div class="tree-container" id="edgeTree"></div>
@@ -380,8 +378,7 @@ function renderNode(container,node,depth,source){
   div.addEventListener('contextmenu',e=>{e.preventDefault();ctxTarget={source:source==='safariTree'?'safari':'edge',node};const m=document.getElementById('ctxMenu');m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';m.classList.add('active');});
   div.addEventListener('click',()=>{document.querySelectorAll('.tree-item.selected').forEach(el=>el.classList.remove('selected'));div.classList.add('selected');});
 }
-function expandAll(src){const cid=src==='safari'?'safariTree':'edgeTree';document.getElementById(cid).querySelectorAll('.tree-item .arrow').forEach(ar=>{const item=ar.closest('.tree-item'),cc=item.nextElementSibling;if(cc&&cc.tagName==='DIV'){cc.style.display='';ar.classList.add('open');}});}
-function collapseAll(src){const cid=src==='safari'?'safariTree':'edgeTree';document.getElementById(cid).querySelectorAll('.tree-item .arrow').forEach(ar=>{const item=ar.closest('.tree-item'),cc=item.nextElementSibling;if(cc&&cc.tagName==='DIV'){cc.style.display='none';ar.classList.remove('open');}});}
+function toggleExpand(src){const cid=src==='safari'?'safariTree':'edgeTree';const container=document.getElementById(cid);const firstArrow=container.querySelector('.tree-item .arrow');if(!firstArrow)return;const firstCC=firstArrow.closest('.tree-item').nextElementSibling;const isExpanded=firstCC&&firstCC.tagName==='DIV'&&firstCC.style.display!=='none';const btn=container.parentElement.querySelector('.btn[onclick*="toggleExpand"]');container.querySelectorAll('.tree-item .arrow').forEach(ar=>{const item=ar.closest('.tree-item'),cc=item.nextElementSibling;if(cc&&cc.tagName==='DIV'){if(isExpanded){cc.style.display='none';ar.classList.remove('open');}else{cc.style.display='';ar.classList.add('open');}}});if(btn)btn.textContent=isExpanded?'📂 展开':'📂 折叠';}
 
 // ═══════ 对比 ═══════
 function doCompare(){

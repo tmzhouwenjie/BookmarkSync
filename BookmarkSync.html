@@ -19,6 +19,7 @@ body { font-family: -apple-system, 'SF Pro Text', 'Segoe UI', sans-serif; backgr
 .toolbar-row { display:flex; align-items:center; gap:4px; padding:2px 0; }
 .toolbar .title { font-size:13px; font-weight:600; margin-right:6px; white-space:nowrap; }
 .toolbar .sep { width:1px; height:18px; background:var(--border); margin:0 2px; }
+.sep { width:1px; height:14px; background:var(--border); margin:0 2px; flex-shrink:0; }
 .btn { padding:4px 10px; border:1px solid var(--border); border-radius:5px; background:var(--surface2); color:var(--text); font-size:12px; cursor:pointer; transition:all .15s; white-space:nowrap; }
 .btn:hover { background:var(--accent); border-color:var(--accent); }
 .btn:disabled { opacity:.35; cursor:default; background:var(--surface2); border-color:var(--border); }
@@ -113,7 +114,7 @@ body { font-family: -apple-system, 'SF Pro Text', 'Segoe UI', sans-serif; backgr
     <button class="btn" onclick="syncAll()" id="btnAll" disabled>⇄ 双向</button>
     <div class="sep"></div>
     <button class="btn" onclick="doDedup()" id="btnDedup" disabled>🗑 去重</button>
-    <button class="btn danger" onclick="batchDelete()">🗑 批量删</button>
+    <button class="btn danger" onclick="batchDelete()">🗑 删除</button>
     <button class="btn" onclick="restoreBackup()" id="btnRestore">⏪ 恢复</button>
     <div class="sep"></div>
     <button class="btn" onclick="showLogs()">📋 日志</button>
@@ -150,13 +151,16 @@ body { font-family: -apple-system, 'SF Pro Text', 'Segoe UI', sans-serif; backgr
       🧭 Safari <span class="badge" id="safariBadge">未加载</span>
       <div class="tools">
         <button class="btn sm" onclick="sortBookmarks('safari')">↕ 排序</button>
-        <button class="btn sm danger" onclick="delSafariOnly()" id="btnDelSS" disabled>✂ 删独有</button>
+        <button class="btn sm" onclick="checkSafariOnly()" id="btnDelSS" disabled>☑ 勾选独有</button>
         <button class="btn sm" onclick="syncCheckedToEdge()" id="btnSyncToEdge" disabled>📋 同步到Edge</button>
         <button class="btn sm" onclick="downloadSafari()" id="btnSaveSafari" disabled>💾 保存</button>
         <button class="btn sm" onclick="doBackup('safari')" id="btnBackupSafari" disabled>⏪ 备份</button>
         <button class="btn sm" onclick="checkAll('safari',true)">全选</button>
         <button class="btn sm" onclick="checkAll('safari',false)">取消</button>
         <button class="btn sm" onclick="invertCheck('safari')">反选</button>
+        <div class="sep"></div>
+        <button class="btn sm" onclick="expandAll('safari')">📂 展开</button>
+        <button class="btn sm" onclick="collapseAll('safari')">📂 折叠</button>
       </div>
     </div>
     <div class="tree-container" id="safariTree"></div>
@@ -166,13 +170,16 @@ body { font-family: -apple-system, 'SF Pro Text', 'Segoe UI', sans-serif; backgr
       🌐 Edge <span class="badge" id="edgeBadge">未加载</span>
       <div class="tools">
         <button class="btn sm" onclick="sortBookmarks('edge')">↕ 排序</button>
-        <button class="btn sm danger" onclick="delEdgeOnly()" id="btnDelES" disabled>✂ 删独有</button>
+        <button class="btn sm" onclick="checkEdgeOnly()" id="btnDelES" disabled>☑ 勾选独有</button>
         <button class="btn sm" onclick="syncCheckedToSafari()" id="btnSyncToSafari" disabled>📋 同步到Safari</button>
         <button class="btn sm" onclick="downloadEdge()" id="btnSaveEdge" disabled>💾 保存</button>
         <button class="btn sm" onclick="doBackup('edge')" id="btnBackupEdge" disabled>⏪ 备份</button>
         <button class="btn sm" onclick="checkAll('edge',true)">全选</button>
         <button class="btn sm" onclick="checkAll('edge',false)">取消</button>
         <button class="btn sm" onclick="invertCheck('edge')">反选</button>
+        <div class="sep"></div>
+        <button class="btn sm" onclick="expandAll('edge')">📂 展开</button>
+        <button class="btn sm" onclick="collapseAll('edge')">📂 折叠</button>
       </div>
     </div>
     <div class="tree-container" id="edgeTree"></div>
@@ -373,6 +380,8 @@ function renderNode(container,node,depth,source){
   div.addEventListener('contextmenu',e=>{e.preventDefault();ctxTarget={source:source==='safariTree'?'safari':'edge',node};const m=document.getElementById('ctxMenu');m.style.left=e.clientX+'px';m.style.top=e.clientY+'px';m.classList.add('active');});
   div.addEventListener('click',()=>{document.querySelectorAll('.tree-item.selected').forEach(el=>el.classList.remove('selected'));div.classList.add('selected');});
 }
+function expandAll(src){const cid=src==='safari'?'safariTree':'edgeTree';document.getElementById(cid).querySelectorAll('.tree-item .arrow').forEach(ar=>{const item=ar.closest('.tree-item'),cc=item.nextElementSibling;if(cc&&cc.tagName==='DIV'){cc.style.display='';ar.classList.add('open');}});}
+function collapseAll(src){const cid=src==='safari'?'safariTree':'edgeTree';document.getElementById(cid).querySelectorAll('.tree-item .arrow').forEach(ar=>{const item=ar.closest('.tree-item'),cc=item.nextElementSibling;if(cc&&cc.tagName==='DIV'){cc.style.display='none';ar.classList.remove('open');}});}
 
 // ═══════ 对比 ═══════
 function doCompare(){
@@ -553,9 +562,9 @@ function doDedup(){
 }
 function dedupTree(root){const seen=new Set();let rm=0;function w(n){const tr=[];for(let i=0;i<n.children.length;i++){const c=n.children[i];if(c.url){const k=normUrl(c.url);if(seen.has(k)){tr.push(i);rm++;}else seen.add(k);}else w(c);}for(let i=tr.length-1;i>=0;i--)n.children.splice(tr[i],1);}w(root);return rm;}
 
-// ═══════ 删除 ═══════
-function delSafariOnly(){if(!diffResult||!diffResult.safariOnly.length)return;if(!confirm(`从Safari删除${diffResult.safariOnly.length}条独有书签？`))return;let r=0;for(const i of diffResult.safariOnly)if(deleteNode(safariData,findNode(safariData,i.url)))r++;setDirty(true);refreshCounts();doCompare();setStatus(`✅ Safari删${r}条`);}
-function delEdgeOnly(){if(!diffResult||!diffResult.edgeOnly.length)return;if(!confirm(`从Edge删除${diffResult.edgeOnly.length}条独有书签？`))return;let r=0;for(const i of diffResult.edgeOnly)if(deleteNode(edgeData,findNode(edgeData,i.url)))r++;setDirty(true);refreshCounts();doCompare();setStatus(`✅ Edge删${r}条`);}
+// ═══════ 勾选独有 ═══════
+function checkSafariOnly(){if(!diffResult||!diffResult.safariOnly.length)return;document.querySelectorAll('#safariTree .tag-safari-only').forEach(tag=>{const item=tag.closest('.tree-item'),cb=item?.querySelector('input.cb');if(cb){cb.checked=true;item.classList.add('checked');}});setStatus(`✅ 已勾选 ${diffResult.safariOnly.length} 条 Safari 独有书签`);}
+function checkEdgeOnly(){if(!diffResult||!diffResult.edgeOnly.length)return;document.querySelectorAll('#edgeTree .tag-edge-only').forEach(tag=>{const item=tag.closest('.tree-item'),cb=item?.querySelector('input.cb');if(cb){cb.checked=true;item.classList.add('checked');}});setStatus(`✅ 已勾选 ${diffResult.edgeOnly.length} 条 Edge 独有书签`);}
 
 // ═══════ 批量勾选/删除（含文件夹） ═══════
 function onCheck(cb){
@@ -592,12 +601,12 @@ document.addEventListener('click',()=>document.getElementById('ctxMenu').classLi
 function ctxAction(action){
   document.getElementById('ctxMenu').classList.remove('active');if(!ctxTarget)return;
   const root=ctxTarget.source==='safari'?safariData:edgeData,node=ctxTarget.node;
-  if(action==='edit'&&node.url){editTarget={source:ctxTarget.source,node};document.getElementById('editName').value=node.name;document.getElementById('editUrl').value=node.url;document.getElementById('modalTitle').textContent='编辑书签';document.getElementById('editModal').classList.add('active');}
+  if(action==='edit'){editTarget={source:ctxTarget.source,node,isFolder:!node.url};document.getElementById('editName').value=node.name;document.getElementById('editUrl').value=node.url||'';const showUrl=!!node.url;document.getElementById('editUrl').style.display=showUrl?'':'none';document.getElementById('editUrl').previousElementSibling.style.display=showUrl?'':'none';document.getElementById('modalTitle').textContent=node.url?'编辑书签':'编辑文件夹';document.getElementById('editModal').classList.add('active');}
   else if(action==='add'){const nm=prompt('书签名称:');if(!nm)return;const url=prompt('URL:');if(!url)return;const f=!node.url?node:root;f.children.push({name:nm,url,children:[],path:f.path||''});refreshAll();}
   else if(action==='addFolder'){const nm=prompt('文件夹名称:');if(!nm)return;const f=!node.url?node:root;f.children.push({name:nm,url:'',children:[],path:''});refreshAll();}
   else if(action==='delete'){if(!confirm(`删除「${node.name}」${node.url?'':'及其所有子项'}？`))return;deleteNode(root,node);refreshAll();}
 }
-function saveEdit(){if(!editTarget)return;editTarget.node.name=document.getElementById('editName').value.trim();editTarget.node.url=document.getElementById('editUrl').value.trim();closeModal();refreshAll();}
+function saveEdit(){if(!editTarget)return;editTarget.node.name=document.getElementById('editName').value.trim();if(!editTarget.isFolder){const u=document.getElementById('editUrl').value.trim();if(u)editTarget.node.url=u;}closeModal();refreshAll();}
 function closeModal(){document.getElementById('editModal').classList.remove('active');editTarget=null;}
 
 // ═══════ 搜索 ═══════

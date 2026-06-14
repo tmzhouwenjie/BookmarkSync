@@ -7,7 +7,7 @@ cd "$SCRIPT_DIR"
 
 APP_NAME="BookmarkSync"
 APP_DISPLAY="Bookmark Sync"
-VERSION="1.1.0"
+VERSION="1.1.1"
 BUILD_DIR="$SCRIPT_DIR/build"
 DIST_DIR="$SCRIPT_DIR/dist"
 

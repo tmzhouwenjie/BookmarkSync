@@ -30,7 +30,7 @@ BACKUP_DIR = HOME / ".bookmark_sync" / "backups"
 LOG_DIR = HOME / ".bookmark_sync" / "logs"
 LOG_FILE = LOG_DIR / "app.log"
 HTML_FILE = Path(__file__).parent / "BookmarkSync.html"
-APP_VERSION = '1.1.0'
+APP_VERSION = '1.1.1'
 GITHUB_REPO = 'tmzhouwenjie/BookmarkSync'
 
 # ─── 日志配置 ─────────────────────────────────────────────

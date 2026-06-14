@@ -27,6 +27,7 @@ sync_to_mac() {
 }
 
 build_dmg() {
+  local skip_clean="${1:-false}"
   echo "在 Mac 上构建 DMG..."
   ssh "$REMOTE" "
     export PATH=\"\$PATH:/opt/homebrew/bin\"
@@ -35,7 +36,9 @@ build_dmg() {
     rm -rf dist build
     bash build.sh 2>&1 | tail -5
   "
-  clean_mac
+  if [ "$skip_clean" != "true" ]; then
+    clean_mac
+  fi
 }
 
 clean_mac() {
@@ -68,10 +71,12 @@ create_release() {
   ssh "$REMOTE" "
     export PATH=\"\$PATH:/opt/homebrew/bin\"
     cd $MAC_PROJ
+    git add -A
+    git commit -m \"chore: bump version to $version\" 2>&1
     git push origin main 2>&1
   "
 
-  build_dmg
+  build_dmg true
 
   ssh "$REMOTE" "
     export PATH=\"\$PATH:/opt/homebrew/bin\"
